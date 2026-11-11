@@ -119,7 +119,7 @@
                     body: JSON.stringify({ branch, item, status: newStatus })
                 });
             } catch (err) {
-                console.error('Ошибка сохранении:', err);
+                console.error('Ошибка сохранения:', err);
             }
         }
 
@@ -197,7 +197,6 @@
         }
 
         loadData();
-        // Автообновление каждые 15 секунд для синхронизации всех устройств
         setInterval(loadData, 15000);
     </script>
 </body>
