@@ -31,7 +31,7 @@
         header { background: #ffffff; border-bottom: 1px solid var(--border-color); position: sticky; top: 0; z-index: 100; padding: 12px 20px; }
         .header-container { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
         .logo-title { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.15rem; color: #1e293b; }
-        .logo-icon { background: #3b82f6; color: white; width: 34px; height: 34px; borderRadius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; border-radius: 8px; }
+        .logo-icon { background: #3b82f6; color: white; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
         
         .nav-tabs { display: flex; background: #f1f5f9; padding: 4px; border-radius: 10px; gap: 4px; }
         .tab-btn { border: none; background: transparent; padding: 6px 14px; font-size: 0.9rem; font-weight: 600; color: var(--text-muted); cursor: pointer; border-radius: 6px; transition: all 0.2s; }
@@ -59,6 +59,7 @@
         .status-заказано { background-color: var(--status-ordered-bg); color: var(--status-ordered-text); border-color: var(--status-ordered-border); }
         .status-нет { background-color: var(--status-no-bg); color: var(--status-no-text); border-color: var(--status-no-border); }
 
+        .loading-overlay { text-align: center; padding: 40px; font-weight: 600; color: var(--text-muted); }
         .hidden { display: none !important; }
     </style>
 </head>
@@ -85,40 +86,41 @@
     </div>
 
     <main class="main-container">
-        <div id="branchesView" class="branch-grid"></div>
+        <div id="loader" class="loading-overlay">Загрузка данных из таблицы...</div>
+        <div id="branchesView" class="branch-grid hidden"></div>
         <div id="summaryView" class="branch-grid hidden"></div>
     </main>
 
     <script>
-        const branches = ['Калинина', 'МГ', 'Ленина', 'Планета'];
-        const items = [
-            'Пакеты маленькие', 'Пакеты большие', 'Полотенца бумажные', 'Салфетки',
-            'Салфетки влажные', 'Ложки', 'Вилки', 'Тарелки', 'Аккум. бат',
-            'Средство для пола', 'Туалетка', 'Освежитель воздуха', 'Насадки на швабру',
-            'Вонючки на вход', 'Средство для стекол', 'Жидкое мыло', 'Средство для посуды',
-            'Губки', 'Жижа для сантехники', 'Тряпки для пыли', 'Полотенца обычные', 'Одноразовые стаканчики'
-        ];
+        // Вставь сюда скопированную ссылку на Apps Script Web App
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzN0ty9SJNMrzgXQb6g4ZPWAnJsemLTw_6yEn7PY7Rq5N50gTXfOkh0ulNrRvBhhNfH/exec';
 
-        let state = JSON.parse(localStorage.getItem('club_supplies_state')) || {};
+        let state = {};
 
-        function initState() {
-            branches.forEach(b => {
-                if (!state[b]) state[b] = {};
-                items.forEach(i => {
-                    if (!state[b][i]) state[b][i] = (b === 'Планета' && i === 'Пакеты маленькие') ? 'заказать' : 'есть';
-                });
-            });
-            saveState();
+        async function loadData() {
+            try {
+                const res = await fetch(SCRIPT_URL);
+                state = await res.json();
+                document.getElementById('loader').classList.add('hidden');
+                document.getElementById('branchesView').classList.remove('hidden');
+                render();
+            } catch (err) {
+                document.getElementById('loader').innerText = 'Ошибка загрузки данных. Проверьте ссылку API.';
+            }
         }
 
-        function saveState() {
-            localStorage.setItem('club_supplies_state', JSON.stringify(state));
-        }
-
-        function updateStatus(branch, item, newStatus) {
+        async function updateStatus(branch, item, newStatus) {
             state[branch][item] = newStatus;
-            saveState();
             render();
+
+            try {
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ branch, item, status: newStatus })
+                });
+            } catch (err) {
+                console.error('Ошибка сохранении:', err);
+            }
         }
 
         function render() {
@@ -126,12 +128,12 @@
             const query = document.getElementById('searchInput').value.toLowerCase();
             branchesContainer.innerHTML = '';
 
-            branches.forEach(b => {
+            Object.keys(state).forEach(b => {
                 const card = document.createElement('div');
                 card.className = 'branch-card';
                 
                 let rowsHtml = '';
-                items.forEach(i => {
+                Object.keys(state[b]).forEach(i => {
                     if (query && !i.toLowerCase().includes(query)) return;
                     const currentStatus = state[b][i];
                     rowsHtml += `
@@ -172,12 +174,12 @@
             const summaryContainer = document.getElementById('summaryView');
             summaryContainer.innerHTML = '';
             
-            branches.forEach(b => {
+            Object.keys(state).forEach(b => {
                 const card = document.createElement('div');
                 card.className = 'branch-card';
                 let neededHtml = '';
 
-                items.forEach(i => {
+                Object.keys(state[b]).forEach(i => {
                     const st = state[b][i];
                     if (st === 'заказать' || st === 'нет') {
                         neededHtml += `
@@ -194,8 +196,9 @@
             });
         }
 
-        initState();
-        render();
+        loadData();
+        // Автообновление каждые 15 секунд для синхронизации всех устройств
+        setInterval(loadData, 15000);
     </script>
 </body>
 </html>
